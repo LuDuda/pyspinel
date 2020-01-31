@@ -40,7 +40,7 @@ from spinel.const import SPINEL
 from spinel.const import SPINEL_LAST_STATUS_MAP
 from spinel.hdlc import Hdlc
 
-
+UART = ''
 
 FEATURE_USE_HDLC = 1
 FEATURE_USE_SLACC = 1
@@ -110,13 +110,18 @@ class SpinelCodec(object):
 
     @classmethod
     def parse_U(cls, payload):
-        payload = payload.decode('utf-8')
-        nullchar = '\0'
 
-        if payload.find(nullchar) >= 0:
-            return payload[:payload.index(nullchar)]  # strip null
+        null_char = 0x00
+        payload_null_char_location=-1
+        for i in range(len(payload)):
+            if payload[i] == null_char:
+                payload_null_char_location = i
+                break
+
+        if payload_null_char_location >= 0:
+            return payload[:payload_null_char_location].decode('utf-8')
         else:
-            return payload
+            return payload.decode('utf-8')
 
     @classmethod
     def parse_D(cls, payload): return payload
@@ -244,7 +249,7 @@ class SpinelCodec(object):
         return result
 
     @classmethod
-    def parse_fields(cls, payload, spinel_format):
+    def parse_fields(cls, payload, spinel_format, log = False):
         result = []
 
         idx = 0
@@ -286,6 +291,16 @@ class SpinelCodec(object):
                 payload = payload[cls.get_payload_size(payload, format):]
 
                 idx += 1
+
+            if log and format == 'U':
+                global UART
+                
+                with open("log_" + UART.replace('/', '_') + '.log', "a+") as myfile:
+                    import datetime
+                    line = '[' + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    line += '] ' + result[0]
+                    line += '\n'
+                    myfile.write(line)
 
         return tuple(result)
 
@@ -631,7 +646,7 @@ class SpinelPropertyHandler(SpinelCodec):
 
     def STREAM_NET_INSECURE(self, _, payload): return self.parse_d(payload)
 
-    def STREAM_LOG(self, _, payload): return self.parse_fields(payload, "UD")
+    def STREAM_LOG(self, _, payload): return self.parse_fields(payload, "UD", True)
 
     def PIB_PHY_CHANNELS_SUPPORTED(self, _wpan_api, payload): pass
 
@@ -864,6 +879,9 @@ class WpanApi(SpinelCodec):
         self.__queue_prop = defaultdict(queue.Queue)  # Map tid to Queue.
         self.queue_register()
         self.__start_reader()
+
+        global UART
+        UART = self.stream.get_port()
 
     def __del__(self):
         self._reader_alive = False

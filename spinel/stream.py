@@ -52,10 +52,14 @@ class StreamSerial(IStream):
 
     def __init__(self, dev, baudrate=115200, rtscts=False):
         try:
+            self.port = dev
             self.serial = serial.Serial(port=dev, baudrate=baudrate, rtscts=rtscts)
         except Exception as e:
             CONFIG.LOGGER.error(f"Couldn't open {dev} {str(e)}")
             raise
+
+    def get_port(self):
+        return self.port
 
     def write(self, data):
         self.serial.write(data)
